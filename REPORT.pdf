@@ -1,1 +1,84 @@
 
+Producer–Consumer Problem Report
+--------------------------------
+
+Objective
+---------
+Implement a bounded buffer (table of size 2) shared by two processes — a producer and a consumer.
+Both processes synchronize their access using counting semaphores (`empty`, `full`) and a process-shared mutex.
+
+Environment
+-----------
+- Language: C (POSIX standard)
+- OS: Linux (Ubuntu)
+- Libraries used:
+  - pthreads (for process-shared mutex)
+  - semaphore.h (for POSIX semaphores)
+  - sys/mman.h (for shared memory)
+
+Design
+------
+1. Shared Memory
+   The shared memory region (created via `shm_open`) stores:
+   - `table[2]` : holds up to two integer items.
+   - `count`    : number of items currently on the table.
+   - `empty`, `full` : counting semaphores.
+   - `mutex` : process-shared mutex for mutual exclusion.
+
+2. Semaphores
+   - `empty` initialized to 2 (table slots).
+   - `full` initialized to 0.
+   - The producer waits on `empty` before placing an item.
+   - The consumer waits on `full` before consuming.
+
+3. Mutex
+   - Ensures only one process modifies the shared table at a time.
+   - Implemented with `pthread_mutex_t` configured as `PTHREAD_PROCESS_SHARED`.
+
+4. Producer Behavior
+   - Generates random integers (0–999).
+   - Waits for available slot (`sem_wait(empty)`).
+   - Locks mutex, places item, increments `count`.
+   - Unlocks mutex, signals `sem_post(full)`.
+
+5. Consumer Behavior
+   - Waits for an available item (`sem_wait(full)`).
+   - Locks mutex, removes item, decrements `count`.
+   - Unlocks mutex, signals `sem_post(empty)`.
+
+Synchronization Summary
+-----------------------
+| Step | Producer | Consumer |
+|------|-----------|-----------|
+| 1 | Wait on `empty` | Wait on `full` |
+| 2 | Lock mutex | Lock mutex |
+| 3 | Place item | Remove item |
+| 4 | Unlock mutex | Unlock mutex |
+| 5 | Post `full` | Post `empty` |
+
+Testing and Results
+-------------------
+- Producer and consumer processes run concurrently.
+- When table is full (2 items), producer blocks until consumer consumes.
+- When table is empty, consumer blocks until producer produces.
+- Verified synchronization prevents race conditions or data corruption.
+
+Example Output:
+---------------
+Producer: placed 537 (count=1)
+Producer: placed 92 (count=2)
+Consumer: took 92 (count=1)
+Consumer: took 537 (count=0)
+
+Cleanup
+-------
+Terminate both processes and remove shared memory:
+    pkill producer
+    pkill consumer
+    rm /dev/shm/pc_table_shm
+
+Conclusion
+----------
+The implementation correctly synchronizes producer and consumer using semaphores and a mutex. The system demonstrates interprocess communication with shared memory and proper synchronization primitives under Linux.
+
+
